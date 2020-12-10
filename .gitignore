@@ -1,0 +1,12 @@
+# Object files
+*.o
+
+# Temporary files
+*~
+*.tmp
+
+# Executables
+out
+a.out
+share-it
+test_framebuffer
