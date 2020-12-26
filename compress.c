@@ -86,16 +86,30 @@ int compress_zrle(z_stream *compress_stream, framebuffer_rect_t *rect, uint8_t *
         buf_add_uint8(b, zrle.solid.red);
         buf_add_uint8(b, zrle.solid.green);
         buf_add_uint8(b, zrle.solid.blue);
-        compress_stream->avail_in = b->len;
-        compress_stream->next_in = b->buf;
+//        compress_stream->avail_in = b->len;
+//        compress_stream->next_in = b->buf;
     } else if (zrle.sub_encoding == rle_encoding_type_raw) {
         // FIXME - allow rect to have size != 64x64
-        compress_stream->avail_in = rect->width * rect->height * sizeof(uint32_t);
-        compress_stream->next_in = (uint8_t *)zrle.raw.data;
+        // FIXME - for compression, use this
+        // --
+        // compress_stream->avail_in = rect->width * rect->height * sizeof(uint32_t);
+        // compress_stream->next_in = (uint8_t *)zrle.raw.data;
+        // --
+        // Instead of this:
+        buf_add_bytes(b,  rect->width * rect->height * sizeof(uint32_t), (uint8_t *)zrle.raw.data);
     } else {
         fprintf(stderr, "%s: unknown encoding %d\n", __FUNCTION__, zrle.sub_encoding);
         return -1;
     }
+
+    *output = malloc(b->len);
+    *len = b->len;
+    memcpy(*output, b->buf, b->len);
+    buf_free(b);
+    if (*output == NULL) {
+        return -1;
+    }
+    return 0;
 
     do {
         compress_stream->avail_out = CHUNK;
@@ -115,8 +129,8 @@ int compress_zrle(z_stream *compress_stream, framebuffer_rect_t *rect, uint8_t *
         compressed_length += nb_ready;
     } while (compress_stream->avail_out == 0);
 
-    *output = compressed_output;
-    *len = compressed_length;
+//    *output = compressed_output;
+//    *len = compressed_length;
 
     if (b != NULL) {
         buf_free(b);
@@ -134,6 +148,10 @@ int decompress_zrle(z_stream *decompress_stream, framebuffer_rect_t *rect, uint8
     if (len == 0) {
         return 0;
     }
+    uncompressed_output = input;
+
+    /*
+    FIXME: remodel compression.
 
     decompress_stream->avail_in = len;
     decompress_stream->next_in = input;
@@ -158,6 +176,7 @@ int decompress_zrle(z_stream *decompress_stream, framebuffer_rect_t *rect, uint8
         uncompressed_length += nb_ready;
     } while (decompress_stream->avail_out == 0);
 
+    */
 
     framebuffer_encoding_zrle_t *zrle = &(rect->enc.zrle);
     zrle->sub_encoding = uncompressed_output[0];
@@ -186,7 +205,8 @@ int decompress_zrle(z_stream *decompress_stream, framebuffer_rect_t *rect, uint8
         return -1;
     }
 
-    free(uncompressed_output);
+    // FIXME - enable compression
+    //free(uncompressed_output);
     return 0;
 }
 
