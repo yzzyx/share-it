@@ -15,16 +15,15 @@
 enum packet_type {
     packet_type_session_join_request = 1,
     packet_type_session_join_response = 2,
-    packet_type_session_start = 3,
+    packet_type_session_screenshare_start = 3,
     packet_type_cursor_info = 4,
     packet_type_framebuffer_update = 5,
 };
 
 typedef struct {
-    uint8_t type;
     uint16_t width;
     uint16_t height;
-} framebuffer_info_t;
+} screenshare_info_t;
 
 typedef struct {
     uint8_t type;
@@ -37,22 +36,18 @@ enum {
     SESSION_JOIN_OK = 1,
     SESSION_JOIN_NOT_FOUND = 2,
     SESSION_JOIN_INVALID_PASSWORD = 3,
+    SESSION_JOIN_CLIENT_JOINED = 4, // A new client has joined the session
+    SESSION_JOIN_CLIENT_LEFT = 5, // A client has left the session
 } session_join_status;
 
 typedef struct  __attribute__ ((__packed__)) {
     uint8_t status;
-    uint16_t width;
-    uint16_t height;
+    char *client_name;  // Only set if 'status' is SESSION_JOIN_CLIENT_ADDED or SESSION_JOIN_CLIENT_LEFT
 }
 pkt_session_join_response_t;
 
-typedef struct {
-    uint8_t type;
-    uint8_t status;
-} session_join_response_t;
-
-int pkt_send_session_start (int s, uint16_t width, uint16_t height);
-int pkt_recv_session_start(int s, u_int16_t *width, u_int16_t *height);
+int pkt_send_session_screenshare_request (int s, uint16_t width, uint16_t height);
+int pkt_recv_session_screenshare_start_request(int s, u_int16_t *width, u_int16_t *height);
 
 int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuffer_update_t *update);
 int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuffer_update_t **output);

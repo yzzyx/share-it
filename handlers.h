@@ -11,6 +11,8 @@
 #define SHAREIT_HANDLERS_H
 
 int app_handle_join_response(shareit_app_t *app);
+int app_handle_cursor_info(shareit_app_t *app);
+int app_handle_screenshare_start(shareit_app_t *app);
 int app_handle_framebuffer_update(shareit_app_t *app);
 
 #endif

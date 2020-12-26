@@ -9,7 +9,7 @@ typedef struct {
     int row_stride;  // n. of bytes for each row
     int width;       // width of view
     int height;      // height of view
-}viewinfo_t;
+} viewinfo_t;
 
 typedef struct {
     gboolean share_screen;
@@ -47,6 +47,9 @@ typedef struct {
     GtkEntry *dlg_select_session_entry;
     GtkWidget *dlg_connect;
     GtkComboBoxText *dlg_connect_server_dropdown;
+
+    GtkWidget *screen_share_window;
+    GtkDrawingArea *screen_share_area;
 } shareit_app_t;
 
 void show_error(shareit_app_t *app, const char *fmt, ...);

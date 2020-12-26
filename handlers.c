@@ -22,7 +22,65 @@ int app_handle_join_response(shareit_app_t *app) {
         return -1;
     }
 
-    printf("joined session with size %d x %d\n", pkt.width, pkt.height);
+    switch (pkt.status) {
+    case SESSION_JOIN_CLIENT_JOINED:
+        printf("client %s joined session\n", pkt.client_name);
+        free(pkt.client_name);
+        break;
+    case SESSION_JOIN_CLIENT_LEFT:
+        printf("client %s left session\n", pkt.client_name);
+        free(pkt.client_name);
+        break;
+    case SESSION_JOIN_OK:
+        printf("session joined!\n");
+        break;
+    default:
+        printf("unknown status %d\n", pkt.status);
+        break;
+
+    }
+
+    return 0;
+}
+
+int app_handle_cursor_info(shareit_app_t *app) {
+    uint16_t x, y;
+    uint8_t cursor;
+
+    if (pkt_recv_cursorinfo(app->conn->socket, &x, &y, &cursor)) {
+        show_error(app, "error while reading cursor info: %s");
+        return -1;
+    }
+    printf("cursor: %d,%d\n", x, y);
+    return 0;
+}
+
+int app_handle_screenshare_start(shareit_app_t *app) {
+    uint16_t width, height;
+    if (pkt_recv_session_screenshare_start_request(app->conn->socket, &width, &height)) {
+        show_error(app, "error while reading screenshare info");
+        return -1;
+    }
+
+    if (app->view == NULL) {
+        app->view = calloc(1, sizeof(viewinfo_t));
+        if (app->view == NULL) {
+            perror("calloc(app->view)");
+            return -1;
+        }
+    }
+
+    if (app->view->pixels != NULL) {
+        free(app->view->pixels);
+    }
+
+    app->view->pixels = calloc(width*height, sizeof(uint32_t));
+    app->view->row_stride = width*sizeof(uint32_t);
+    app->view->width = width;
+    app->view->height = height;
+
+    gtk_widget_set_size_request(GTK_WIDGET(app->screen_share_area), width, height);
+    gtk_widget_show_all(app->screen_share_window);
     return 0;
 }
 
@@ -40,6 +98,7 @@ int app_handle_framebuffer_update(shareit_app_t *app) {
         draw_update(app->view, update);
     }
 
+    gtk_widget_queue_draw(GTK_WIDGET(app->screen_share_area));
     free_framebuffer_update(update);
     return 0;
 }

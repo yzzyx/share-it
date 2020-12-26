@@ -12,7 +12,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include "shareit.h"
 #include "framebuffer.h"
 #include "packet.h"
 #include "compress.h"
@@ -97,20 +96,20 @@ char *recv_str(int sockfd) {
 }
 
 /**
- * inform server that we're starting a new session
+ * inform server that we want to share our screen in the current session
  *
  * @param s      socket to write to
  * @param width  width of session screen
  * @param height height of session screen
  * @return -1 on error
  */
-int pkt_send_session_start(int s, uint16_t width, uint16_t height) {
+int pkt_send_session_screenshare_request(int s, uint16_t width, uint16_t height) {
     size_t sz;
     buf_t *b;
     int ret = 0;
 
     b = buf_new();
-    buf_add_uint8(b, packet_type_session_start);
+    buf_add_uint8(b, packet_type_session_screenshare_start);
     buf_add_uint16(b, width);
     buf_add_uint16(b, height);
 
@@ -124,7 +123,7 @@ int pkt_send_session_start(int s, uint16_t width, uint16_t height) {
 }
 
 /**
- * read session start information from socket
+ * read session screenshare start information from socket
  * NOTE! This function expects that the 'type' has already been read from the socket.
  *
  * @param[in] s        socket to read from
@@ -132,7 +131,7 @@ int pkt_send_session_start(int s, uint16_t width, uint16_t height) {
  * @param[out] height  height of screen to be displayed
  * @return  -1 on error
  */
-int pkt_recv_session_start(int s, u_int16_t *width, u_int16_t *height) {
+int pkt_recv_session_screenshare_start_request(int s, u_int16_t *width, u_int16_t *height) {
     struct __attribute__ ((__packed__)) {
         uint16_t width;
         uint16_t height;
@@ -143,8 +142,8 @@ int pkt_recv_session_start(int s, u_int16_t *width, u_int16_t *height) {
         printf("%s: could not send, errno: %s\n", __FUNCTION__, strerror(errno));
         return -1;
     }
-    if (width != NULL) *width = pkt.width;
-    if (height != NULL) *height = pkt.height;
+    if (width != NULL) *width = ntohs(pkt.width);
+    if (height != NULL) *height = ntohs(pkt.height);
     return 0;
 }
 
@@ -152,7 +151,7 @@ int pkt_recv_session_start(int s, u_int16_t *width, u_int16_t *height) {
 /**
  * Send framebuffer update to server
  *
- * @param app  main application
+ * @param sockfd  socket to send update on
  * @param update update to send to server
  * @return -1 on error, otherwise 0
  */
@@ -160,8 +159,8 @@ int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuf
     buf_t *b;
     framebuffer_rect_t *rect;
     int ret = 0;
-    uint8_t *compressed_data;
-    size_t compressed_data_sz;
+    uint8_t *compressed_data = NULL;
+    size_t compressed_data_sz = 0;
     int i;
 
     b = buf_new();
@@ -198,7 +197,6 @@ int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuf
         }
     }
 
-    size_t sz;
     if (send_all(sockfd, b->buf, b->len) < 0) {
         ret = -1;
     }
@@ -262,8 +260,8 @@ int pkt_recv_cursorinfo(int s, uint16_t *x, uint16_t *y, uint8_t *cursor) {
         return -1;
     }
 
-    if (x != NULL) *x = pkt.x;
-    if (y != NULL) *y = pkt.y;
+    if (x != NULL) *x = ntohs(pkt.x);
+    if (y != NULL) *y = ntohs(pkt.y);
     if (cursor != NULL) *cursor = pkt.cursor;
     return 0;
 }
@@ -278,7 +276,6 @@ int pkt_recv_cursorinfo(int s, uint16_t *x, uint16_t *y, uint8_t *cursor) {
  */
 int pkt_send_session_join_request(int s, const char *session_name, const char *password) {
     buf_t *b;
-    size_t sz;
     int ret = 0;
 
     b = buf_new();
@@ -329,10 +326,23 @@ int pkt_recv_session_join_request(int s, char **session_name, char **password) {
  * @return
  */
 int pkt_send_session_join_response(int s, pkt_session_join_response_t *pkt) {
-    if (send_all(s, pkt, sizeof(pkt_session_join_response_t)) <= 0) {
-        return -1;
+    buf_t *b = buf_new();
+
+    buf_add_uint8(b, packet_type_session_join_response);
+    buf_add_uint8(b, pkt->status);
+
+    if (pkt->status == SESSION_JOIN_CLIENT_JOINED || pkt->status == SESSION_JOIN_CLIENT_LEFT) {
+        uint8_t len = strlen(pkt->client_name);
+        buf_add_uint8(b, len);
+        buf_add_string(b, pkt->client_name);
     }
 
+    int ret = send_all(s, b->buf, b->len);
+    buf_free(b);
+
+    if (ret <= 0) {
+        return -1;
+    }
     return 0;
 }
 
@@ -345,8 +355,22 @@ int pkt_send_session_join_response(int s, pkt_session_join_response_t *pkt) {
  * @return -1 on error
  */
 int pkt_recv_session_join_response(int s, pkt_session_join_response_t *pkt) {
-    if (recv_all(s, pkt, sizeof(pkt_session_join_response_t)) <= 0) {
+    uint8_t status;
+    if (recv_all(s, &status, sizeof(status)) <= 0) {
         return -1;
+    }
+    pkt->status = status;
+
+    if (status == SESSION_JOIN_CLIENT_JOINED || status == SESSION_JOIN_CLIENT_LEFT) {
+        uint8_t client_name_len;
+        if (recv_all(s, &client_name_len, sizeof(client_name_len)) <= 0) {
+            return -1;
+        }
+        char *name = calloc(client_name_len + 1, 1);
+        if (recv_all(s, name, client_name_len) <= 0) {
+            return -1;
+        }
+        pkt->client_name = name;
     }
 
     return 0;
