@@ -273,15 +273,16 @@ int compare_screens(shareit_app_t *app, framebuffer_update_t **output) {
  * @param g    green
  * @param b    blur
  */
-void view_blit_solid(shareit_app_t *app, int x, int y, int w, int h, uint8_t r, uint8_t g, uint8_t b) {
+void view_blit_solid(viewinfo_t *view, int x, int y, int w, int h, uint8_t r, uint8_t g, uint8_t b) {
     int sx, sy;
 
-    for (sy = 0; sy < h && (y+sy) < app->view_height; sy ++) {
-        for (sx = 0; sx < w && (x+sx) < app->view_width; sx ++) {
-            int pos = (x+sx)*3 + (y+sy)*app->view_row_stride;
-            app->view_pixels[pos] = r;
-            app->view_pixels[pos+1] = g;
-            app->view_pixels[pos+2] = b;
+    for (sy = 0; sy < h && (y+sy) < view->height; sy ++) {
+        for (sx = 0; sx < w && (x+sx) < view->width; sx ++) {
+            int pos = (x+sx)*4 + (y+sy)*view->row_stride;
+            view->pixels[pos+0] = 0;
+            view->pixels[pos+1] = r;
+            view->pixels[pos+2] = g;
+            view->pixels[pos+3] = b;
         }
     }
 }
@@ -296,31 +297,32 @@ void view_blit_solid(shareit_app_t *app, int x, int y, int w, int h, uint8_t r, 
  * @param h     height of block
  * @param raw   source data
  */
-void view_blit_raw(shareit_app_t *app, int x, int y, int w, int h, const uint32_t *raw) {
+void view_blit_raw(viewinfo_t *view, int x, int y, int w, int h, const uint32_t *raw) {
     int sy, sx;
 
-    for (sy = 0; sy < h && y+sy < app->view_height; sy ++) {
-        for (sx = 0; sx < w  && x+sx < app->view_width; sx ++) {
+    for (sy = 0; sy < h && y+sy < view->height; sy ++) {
+        for (sx = 0; sx < w  && x+sx < view->width; sx ++) {
             uint8_t r, g, b;
             r = raw[sx+sy*w] & 0xff;
             g = (raw[sx+sy*w] >> 8) & 0xff;
             b = (raw[sx+sy*w] >> 16) & 0xff;
-            app->view_pixels[(x+sx)*3 + (y+sy) * app->view_row_stride] = r;
-            app->view_pixels[(x+sx)*3 + (y+sy) * app->view_row_stride + 1] = g;
-            app->view_pixels[(x+sx)*3 + (y+sy) * app->view_row_stride + 2] = b;
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 0 ] = 0; // alpha (unused)
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 1] = r;
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 2] = g;
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 3] = b;
         }
     }
 }
 
-int draw_update_zrle(shareit_app_t *app, framebuffer_rect_t *rect) {
+int draw_update_zrle(viewinfo_t *view, framebuffer_rect_t *rect) {
     int ret = 0;
     framebuffer_encoding_zrle_t *zrle = &rect->enc.zrle;
     switch (zrle->sub_encoding) {
     case rle_encoding_type_raw:
-        view_blit_raw(app, rect->xpos, rect->ypos, rect->width, rect->height, zrle->raw.data);
+        view_blit_raw(view, rect->xpos, rect->ypos, rect->width, rect->height, zrle->raw.data);
         break;
     case rle_encoding_type_solid:
-        view_blit_solid(app, rect->xpos, rect->ypos, rect->width, rect->height,
+        view_blit_solid(view, rect->xpos, rect->ypos, rect->width, rect->height,
                         zrle->solid.red, zrle->solid.green, zrle->solid.blue);
         break;
     default:
@@ -331,7 +333,7 @@ int draw_update_zrle(shareit_app_t *app, framebuffer_rect_t *rect) {
     return ret;
 }
 
-int draw_update(shareit_app_t *app, framebuffer_update_t *update) {
+int draw_update(viewinfo_t *view, framebuffer_update_t *update) {
     int i, ret;
 
     for (i = 0; i < update->n_rects; i++) {
@@ -339,7 +341,7 @@ int draw_update(shareit_app_t *app, framebuffer_update_t *update) {
 
         switch (rect->encoding_type) {
         case framebuffer_encoding_type_zrle:
-            ret = draw_update_zrle(app, rect);
+            ret = draw_update_zrle(view, rect);
             break;
         default:
             fprintf(stderr, "unhandled encoding type %d\n", rect->encoding_type);

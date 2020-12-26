@@ -36,7 +36,9 @@ int app_handle_framebuffer_update(shareit_app_t *app) {
     }
 
     // FIXME - check that we're actually in a session as a viewer
-    draw_update(app, update);
+    if (app->view != NULL) {
+        draw_update(app->view, update);
+    }
 
     free_framebuffer_update(update);
     return 0;

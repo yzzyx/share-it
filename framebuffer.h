@@ -3,6 +3,7 @@
 // See COPYING at the root of the repository for details.
 #ifndef GRAB_FRAMEBUFFER_H
 #define GRAB_FRAMEBUFFER_H
+#include "shareit.h"
 
 enum framebuffer_encoding_type {
     framebuffer_encoding_type_raw = 0,
@@ -73,5 +74,5 @@ void free_framebuffer_update(framebuffer_update_t *update);
 void copy_block(shareit_app_t *app, uint32_t *block, int x, int y, int w, int h);
 int compare_parts(shareit_app_t *app, int x, int y, int w, int h);
 int compare_screens(shareit_app_t *app, framebuffer_update_t **update);
-int draw_update(shareit_app_t *app, framebuffer_update_t *update);
+int draw_update(viewinfo_t *view, framebuffer_update_t *update);
 #endif

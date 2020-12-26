@@ -89,10 +89,11 @@ int main (int argc, char *argv[]) {
     // Create output pixbuf
     GdkPixbuf *px = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, 640, 480);
     ASSERT(px != NULL, "could not create pixbuf");
-    app.view_pixels = gdk_pixbuf_get_pixels(px);
-    app.view_row_stride = gdk_pixbuf_get_rowstride(px);
-    app.view_width = 640;
-    app.view_height = 480;
+    app.view = malloc(sizeof(viewinfo_t));
+    app.view->pixels = gdk_pixbuf_get_pixels(px);
+    app.view->row_stride = gdk_pixbuf_get_rowstride(px);
+    app.view->width = 640;
+    app.view->height = 480;
 
     // WHEN whole framebuffer has changed
     // THEN compare screens returns TRUE, and all pixels are marked as changed
@@ -100,7 +101,7 @@ int main (int argc, char *argv[]) {
     ASSERT(is_updated == TRUE, "compare_screens did not return change for differing buffers");
     ASSERT(!check_update(update, 640*480), "expected whole screen to be updated");
 
-    ret = draw_update(&app, update);
+    ret = draw_update(app.view, update);
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
@@ -123,7 +124,7 @@ int main (int argc, char *argv[]) {
     ASSERT(update->n_rects > 0, "expected at least one rect");
     ASSERT(!check_update(update, (640*480) / 2), "expected half of the screen to be updated");
 
-    ret = draw_update(&app, update);
+    ret = draw_update(app.view, update);
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
@@ -138,7 +139,7 @@ int main (int argc, char *argv[]) {
     ASSERT(update->n_rects > 0, "expected at least one rect");
     //ASSERT(!check_update(update, (640*480) / 2), "expected half of the screen to be updated");
 
-    ret = draw_update(&app, update);
+    ret = draw_update(app.view, update);
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
