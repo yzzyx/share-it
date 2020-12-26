@@ -25,24 +25,12 @@ int min(int a, int b) {
     return b;
 }
 
-void free_zrle_enc(framebuffer_encoding_zrle_t *zrle) {
-    switch (zrle->sub_encoding) {
-    case rle_encoding_type_solid:
-        // nothing allocated
-        break;
-    case rle_encoding_type_raw:
-        free(zrle->raw.data);
-        break;
-    default:
-        fprintf(stderr, "%s: encoding type %d not implemented!\n", __FUNCTION__, zrle->sub_encoding);
-        break;
-    }
-}
-
 void free_framebuffer_rect(framebuffer_rect_t *rect) {
     switch (rect->encoding_type) {
-    case framebuffer_encoding_type_zrle:
-        free_zrle_enc(&rect->enc.zrle);
+    case framebuffer_encoding_type_raw:
+        free(rect->enc.raw.data);
+    case framebuffer_encoding_type_solid:
+        /* noop */
         break;
     default:
         fprintf(stderr, "%s: encoding type %d not implemented!\n", __FUNCTION__, rect->encoding_type);
@@ -60,11 +48,12 @@ void free_framebuffer_update(framebuffer_update_t *update) {
         framebuffer_rect_t *rect = update->rects[i];
         free_framebuffer_rect(rect);
     }
+    free(update->rects);
     free(update);
 }
 
 /**
- * copy a block from the current app screen into 'block'
+ * copy a block from the current app screen into a raw data segment
  *
  * @param[in]  app    the main application
  * @param[out] block  buffer to copy the contents to
@@ -73,24 +62,28 @@ void free_framebuffer_update(framebuffer_update_t *update) {
  * @param[in]  w      width of block to copy
  * @param[in]  h      height of block to copy
  */
-void copy_block(shareit_app_t *app, uint32_t *block, int x, int y, int w, int h) {
+void copy_screen_to_raw(shareit_app_t *app, uint8_t *block, int x, int y, int w, int h) {
     int row;
     int max_x = min(app->width, x+w);
     int max_y = min(app->height, y+h);
-    int sz;
 
-    sz = (max_x - x) * (int)sizeof(uint32_t);
     for (row = 0; row < h; row ++, y++) {
+        uint8_t *output_row = block + w*row*3;
         if (y >= max_y || max_x < app->width) {
             // make sure we don't have any old data in the buffer
-            memset((uint8_t *)(block+w*row), 0x00, w*sizeof(uint32_t));
+            memset(output_row, 0x00, w*3);
             if (y >= max_y) {
                 continue;
             }
         }
 
-        int startpos = y*app->width + x;
-        memcpy((uint8_t *)(block+row*w), (uint8_t *)(app->current_screen+startpos), sz);
+        for (int col = 0; col < w && x+col < app->width; col ++) {
+            uint8_t *pixel = block + (row * w + col) * 3;
+            uint8_t *source = ((uint8_t *)(app->current_screen)) + (y*app->width + x + col)*sizeof(uint32_t);
+            pixel[0] = source[0];
+            pixel[1] = source[1];
+            pixel[2] = source[2];
+        }
     }
 }
 
@@ -197,22 +190,18 @@ framebuffer_rect_t *create_rect(shareit_app_t *app, int x, int y, int w, int h) 
     int colour_count = rect_palette(app, x, y, w, h, &palette);
 
     if (colour_count == 1) {
-        rect->encoding_type = framebuffer_encoding_type_zrle;
-        rect->enc.zrle.sub_encoding = rle_encoding_type_solid;
+        rect->encoding_type = framebuffer_encoding_type_solid;
         uint32_t pixel = palette[0];
-        rect->enc.zrle.solid.red = pixel & 0xff;
-        rect->enc.zrle.solid.green = (pixel >> 8) & 0xff;
-        rect->enc.zrle.solid.blue = (pixel >> 16) & 0xff;
-
+        rect->enc.solid.red = pixel & 0xff;
+        rect->enc.solid.green = (pixel >> 8) & 0xff;
+        rect->enc.solid.blue = (pixel >> 16) & 0xff;
         return rect;
     }
 
     // No other types matched, go with raw ZRLE
-    rect->encoding_type = framebuffer_encoding_type_zrle;
-    rect->enc.zrle.sub_encoding = rle_encoding_type_raw;
-
-    rect->enc.zrle.raw.data = malloc(sizeof(uint32_t) * w * h);
-    copy_block(app, rect->enc.zrle.raw.data, x, y, w, h);
+    rect->encoding_type = framebuffer_encoding_type_raw;
+    rect->enc.raw.data = malloc(w * h * 3);
+    copy_screen_to_raw(app, rect->enc.raw.data, x, y, w, h);
     return rect;
 }
 
@@ -279,10 +268,11 @@ void view_blit_solid(viewinfo_t *view, int x, int y, int w, int h, uint8_t r, ui
     for (sy = 0; sy < h && (y+sy) < view->height; sy ++) {
         for (sx = 0; sx < w && (x+sx) < view->width; sx ++) {
             int pos = (x+sx)*4 + (y+sy)*view->row_stride;
-            view->pixels[pos+0] = 0;
-            view->pixels[pos+1] = r;
-            view->pixels[pos+2] = g;
-            view->pixels[pos+3] = b;
+            view->pixels[pos+0] = r;
+            view->pixels[pos+1] = g;
+            view->pixels[pos+2] = b;
+            // Alpha channel is unused
+            // view->pixels[pos+3] = alpha;
         }
     }
 }
@@ -295,61 +285,44 @@ void view_blit_solid(viewinfo_t *view, int x, int y, int w, int h, uint8_t r, ui
  * @param y     y position of block
  * @param w     width of block
  * @param h     height of block
- * @param raw   source data
+ * @param raw   source data in RGB format (24bits per pixel)
  */
-void view_blit_raw(viewinfo_t *view, int x, int y, int w, int h, const uint32_t *raw) {
+void view_blit_raw(viewinfo_t *view, int x, int y, int w, int h, const uint8_t *raw) {
     int sy, sx;
 
     for (sy = 0; sy < h && y+sy < view->height; sy ++) {
         for (sx = 0; sx < w  && x+sx < view->width; sx ++) {
-            uint8_t r, g, b;
-            r = raw[sx+sy*w] & 0xff;
-            g = (raw[sx+sy*w] >> 8) & 0xff;
-            b = (raw[sx+sy*w] >> 16) & 0xff;
-            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 0 ] = 0; // alpha (unused)
-            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 1] = r;
-            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 2] = g;
-            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 3] = b;
+            const uint8_t *pixel = raw + (sx + sy*w) * 3;
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 0] = pixel[0];
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 1] = pixel[1];
+            view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 2] = pixel[2];
+            // view->pixels[(x+sx)*4 + (y+sy) * view->row_stride + 0 ] = 0; // alpha (unused)
         }
     }
 }
 
-int draw_update_zrle(viewinfo_t *view, framebuffer_rect_t *rect) {
-    int ret = 0;
-    framebuffer_encoding_zrle_t *zrle = &rect->enc.zrle;
-    switch (zrle->sub_encoding) {
-    case rle_encoding_type_raw:
-        view_blit_raw(view, rect->xpos, rect->ypos, rect->width, rect->height, zrle->raw.data);
-        break;
-    case rle_encoding_type_solid:
-        view_blit_solid(view, rect->xpos, rect->ypos, rect->width, rect->height,
-                        zrle->solid.red, zrle->solid.green, zrle->solid.blue);
-        break;
-    default:
-        fprintf(stderr, "sub-encoding %d not implemented\n", zrle->sub_encoding);
-        return -1;
-    }
-
-    return ret;
-}
-
+/**
+ * draw framebuffer update to specified view
+ *
+ * @param view   view to draw update to
+ * @param update update to draw
+ * @return 0 on success
+ */
 int draw_update(viewinfo_t *view, framebuffer_update_t *update) {
-    int i, ret;
-
-    for (i = 0; i < update->n_rects; i++) {
+    for (int i = 0; i < update->n_rects; i++) {
         framebuffer_rect_t *rect = update->rects[i];
 
         switch (rect->encoding_type) {
-        case framebuffer_encoding_type_zrle:
-            ret = draw_update_zrle(view, rect);
+        case framebuffer_encoding_type_raw:
+            view_blit_raw(view, rect->xpos, rect->ypos, rect->width, rect->height, rect->enc.raw.data);
+            break;
+        case framebuffer_encoding_type_solid:
+            view_blit_solid(view, rect->xpos, rect->ypos, rect->width, rect->height,
+                            rect->enc.solid.red, rect->enc.solid.green, rect->enc.solid.blue);
             break;
         default:
-            fprintf(stderr, "unhandled encoding type %d\n", rect->encoding_type);
+            fprintf(stderr, "%s: unhandled encoding type %d\n", __FUNCTION__, rect->encoding_type);
             return -1;
-        }
-
-        if (ret != 0) {
-            return ret;
         }
     }
 

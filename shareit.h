@@ -1,7 +1,6 @@
 #ifndef SHAREIT_APP_H
 #define SHAREIT_APP_H
 #include <gtk/gtk.h>
-#include <zlib.h>
 #include "net.h"
 
 typedef struct {
@@ -31,8 +30,6 @@ typedef struct {
     // Network settings
     connection_t *conn;
     char *host;
-    z_stream *output_stream; // used when sending screen data
-    z_stream *input_stream; // used when receiving screen data
     GIOChannel  *channel;
 
     // Widgets

@@ -1,5 +1,5 @@
-CFLAGS=$(shell pkg-config --cflags gtk+-3.0) -g
-LDFLAGS=$(shell pkg-config --libs gtk+-3.0) -lxcb -lxcb-xfixes -lz -g
+CFLAGS=$(shell pkg-config --cflags gtk+-3.0) -g -Wall
+LDFLAGS=$(shell pkg-config --libs gtk+-3.0) -g
 all: share-it
 
 .PHONY: format clean
@@ -7,7 +7,7 @@ all: share-it
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-share-it: main.o grab_gdk.o net.o packet.o compress.o password.o buf.o handlers.o framebuffer.o
+share-it: main.o grab_gdk.o net.o packet.o password.o buf.o handlers.o framebuffer.o
 	$(CC) -o share-it $^ $(LDFLAGS)
 
 view: view.o xcb.o packet.o
@@ -16,7 +16,7 @@ view: view.o xcb.o packet.o
 test: test_framebuffer
 	./test_framebuffer
 
-test_framebuffer: test_framebuffer.o packet.o framebuffer.o buf.o compress.o net.o
+test_framebuffer: test_framebuffer.o packet.o framebuffer.o buf.o net.o
 	$(CC) -o test_framebuffer $^ $(LDFLAGS)
 
 clean:

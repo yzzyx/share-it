@@ -88,7 +88,7 @@ int app_handle_framebuffer_update(shareit_app_t *app) {
     framebuffer_update_t *update;
     int err;
 
-    if ((err = pkt_recv_framebuffer_update(app->conn->socket, app->input_stream, &update)) != 0) {
+    if ((err = pkt_recv_framebuffer_update(app->conn->socket, &update)) != 0) {
         show_error(app, "error while reading screendata: %s", strerror(err));
         return -1;
     }

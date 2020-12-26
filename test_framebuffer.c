@@ -4,11 +4,10 @@
 #include "framebuffer.h"
 #include "net.h"
 #include "packet.h"
-#include "compress.h"
 
 #define ASSERT(x, ...) if (!(x)) { fprintf(stderr, "error: "); fprintf(stderr, __VA_ARGS__); putc('\n', stderr); return 1;}
 
-int show_image(GdkPixbuf *pixbuf);
+int show_image(viewinfo_t *view);
 
 static int png2screenbuf(char *filename, uint32_t *output, int width, int height) {
     GError *err = NULL;
@@ -82,18 +81,15 @@ int main (int argc, char *argv[]) {
     app.height = 480;
     app.current_screen = calloc(640*480, sizeof(uint32_t));
     app.prev_screen = calloc(640*480, sizeof(uint32_t));
-    compress_setup(&app);
 
     memset(app.current_screen, 0xff, sizeof(uint32_t)*640*480);
 
     // Create output pixbuf
-    GdkPixbuf *px = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, 640, 480);
-    ASSERT(px != NULL, "could not create pixbuf");
     app.view = malloc(sizeof(viewinfo_t));
-    app.view->pixels = gdk_pixbuf_get_pixels(px);
-    app.view->row_stride = gdk_pixbuf_get_rowstride(px);
-    app.view->width = 640;
-    app.view->height = 480;
+    app.view->pixels = calloc(app.width*app.height, sizeof(uint32_t));
+    app.view->row_stride = app.width*sizeof(uint32_t);
+    app.view->width = app.width;
+    app.view->height = app.height;
 
     // WHEN whole framebuffer has changed
     // THEN compare screens returns TRUE, and all pixels are marked as changed
@@ -105,7 +101,7 @@ int main (int argc, char *argv[]) {
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
-        show_image(px);
+        show_image(app.view);
     }
 
     free_framebuffer_update(update);
@@ -128,7 +124,21 @@ int main (int argc, char *argv[]) {
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
-        show_image(px);
+        show_image(app.view);
+    }
+
+    free_framebuffer_update(update);
+
+    png2screenbuf("test/03-red-green-blue.png", app.current_screen, app.width, app.height);
+    is_updated = compare_screens(&app, &update);
+    ASSERT(is_updated == TRUE, "compare_screens did not return change for differings buffers");
+    ASSERT(update->n_rects > 0, "expected at least one rect");
+
+    ret = draw_update(app.view, update);
+    ASSERT(ret == 0, "draw update failed");
+
+    if (show) {
+        show_image(app.view);
     }
 
     free_framebuffer_update(update);
@@ -143,29 +153,35 @@ int main (int argc, char *argv[]) {
     ASSERT(ret == 0, "draw update failed");
 
     if (show) {
-        show_image(px);
+        show_image(app.view);
     }
 
     free_framebuffer_update(update);
     return 0;
 }
 
-static gboolean expose(GtkWidget *widget, GdkEvent *event, GdkPixbuf *pixbuf) {
+static gboolean expose(GtkWidget *widget, GdkEvent *event, viewinfo_t *view) {
     GdkWindow *window = gtk_widget_get_window(widget);
     GdkDrawingContext *ctx;
     cairo_region_t *region;
 
     region = cairo_region_create();
+    cairo_surface_t *surface = cairo_image_surface_create_for_data (view->pixels,
+                                                                    CAIRO_FORMAT_RGB24,
+                                                                    view->width,
+                                                                    view->height,
+                                                                    view->row_stride);
     ctx = gdk_window_begin_draw_frame(window, region);
     cairo_t *cr = gdk_drawing_context_get_cairo_context(ctx);
-    gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
+    cairo_set_source_surface(cr, surface, 0, 0);
     cairo_paint(cr);
     gdk_window_end_draw_frame(window, ctx);
+    cairo_surface_destroy(surface);
     cairo_region_destroy(region);
     return FALSE;
 }
 
-int show_image(GdkPixbuf *pixbuf) {
+int show_image(viewinfo_t *view) {
     GtkWidget *window;
 
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -175,7 +191,7 @@ int show_image(GdkPixbuf *pixbuf) {
 
     GtkWidget *drawing = gtk_drawing_area_new();
     gtk_container_add(GTK_CONTAINER(window), drawing);
-    g_signal_connect(G_OBJECT(drawing), "draw", G_CALLBACK(expose), pixbuf);
+    g_signal_connect(G_OBJECT(drawing), "draw", G_CALLBACK(expose), view);
 
     gtk_window_set_decorated(GTK_WINDOW(window), TRUE);
 

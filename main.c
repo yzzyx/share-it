@@ -110,7 +110,7 @@ static gboolean screen_share_timer(shareit_app_t *app) {
 
     framebuffer_update_t *update;
     if (compare_screens(app, &update)) {
-        if (pkt_send_framebuffer_update(app->conn->socket, app->output_stream, update) == -1) {
+        if (pkt_send_framebuffer_update(app->conn->socket, update) == -1) {
             show_error(app, "could not send block data to server");
             gdk_threads_add_idle(G_SOURCE_FUNC(stop_screen_share), app);
             return FALSE;
@@ -291,7 +291,6 @@ static gboolean screen_area_draw_cb(GtkWidget *widget, GdkEvent *event, shareit_
     cairo_t *cr = gdk_drawing_context_get_cairo_context(ctx);
     cairo_set_source_surface(cr, surface, 0, 0);
     cairo_paint(cr);
-    cairo_surface_flush(surface);
     gdk_window_end_draw_frame(window, ctx);
     cairo_surface_destroy(surface);
     cairo_region_destroy(region);
@@ -424,6 +423,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    hostname = "localhost";
     if (hostname != NULL) {
         app->host = hostname;
     }

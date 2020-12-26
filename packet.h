@@ -12,25 +12,16 @@
 #include <stdint.h>
 #include "framebuffer.h"
 
+// Types of data packets
 enum packet_type {
-    packet_type_session_join_request = 1,
-    packet_type_session_join_response = 2,
-    packet_type_session_screenshare_start = 3,
-    packet_type_cursor_info = 4,
-    packet_type_framebuffer_update = 5,
+    packet_type_cursor_info = 1,
+    packet_type_framebuffer_update = 2,
+
+    // These should be moved to the session handling protocol
+    packet_type_session_join_request = 3,
+    packet_type_session_join_response = 4,
+    packet_type_session_screenshare_start = 5,
 };
-
-typedef struct {
-    uint16_t width;
-    uint16_t height;
-} screenshare_info_t;
-
-typedef struct {
-    uint8_t type;
-    uint16_t x;
-    uint16_t y;
-    uint8_t cursor;
-} cursorinfo_t;
 
 enum {
     SESSION_JOIN_OK = 1,
@@ -40,7 +31,7 @@ enum {
     SESSION_JOIN_CLIENT_LEFT = 5, // A client has left the session
 } session_join_status;
 
-typedef struct  __attribute__ ((__packed__)) {
+typedef struct {
     uint8_t status;
     char *client_name;  // Only set if 'status' is SESSION_JOIN_CLIENT_ADDED or SESSION_JOIN_CLIENT_LEFT
 }
@@ -49,8 +40,8 @@ pkt_session_join_response_t;
 int pkt_send_session_screenshare_request (int s, uint16_t width, uint16_t height);
 int pkt_recv_session_screenshare_start_request(int s, u_int16_t *width, u_int16_t *height);
 
-int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuffer_update_t *update);
-int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuffer_update_t **output);
+int pkt_send_framebuffer_update(int sockfd, framebuffer_update_t *update);
+int pkt_recv_framebuffer_update(int sockfd, framebuffer_update_t **output);
 
 int pkt_send_cursorinfo(int s, uint16_t x, uint16_t y, uint8_t cursor);
 int pkt_recv_cursorinfo(int s, uint16_t *x, uint16_t *y, uint8_t *cursor);

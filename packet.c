@@ -14,7 +14,6 @@
 #include <errno.h>
 #include "framebuffer.h"
 #include "packet.h"
-#include "compress.h"
 #include "buf.h"
 
 /**
@@ -155,18 +154,16 @@ int pkt_recv_session_screenshare_start_request(int s, u_int16_t *width, u_int16_
  * @param update update to send to server
  * @return -1 on error, otherwise 0
  */
-int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuffer_update_t *update) {
+int pkt_send_framebuffer_update(int sockfd, framebuffer_update_t *update) {
     buf_t *b;
     framebuffer_rect_t *rect;
     int ret = 0;
     uint8_t *compressed_data = NULL;
-    size_t compressed_data_sz = 0;
     int i;
 
     b = buf_new();
     buf_add_uint8(b, packet_type_framebuffer_update);
-    buf_add_uint8(b, 0); // padding
-    buf_add_uint16(b, update->n_rects);
+    buf_add_uint8(b, update->n_rects);
 
     for (i = 0; i < update->n_rects; i ++) {
         rect = update->rects[i];
@@ -174,24 +171,20 @@ int pkt_send_framebuffer_update(int sockfd, z_stream *zlib_send_stream, framebuf
         buf_add_uint16(b, rect->ypos);
         buf_add_uint16(b, rect->width);
         buf_add_uint16(b, rect->height);
-        buf_add_int32(b, rect->encoding_type);
+        buf_add_uint8(b, rect->encoding_type);
 
         switch (rect->encoding_type) {
-        case framebuffer_encoding_type_zrle:
-            if (compress_zrle(zlib_send_stream, rect, &compressed_data, &compressed_data_sz) == -1) {
-                fprintf(stderr, "compress failed!\n");
-                return -1;
-            }
-
-            if (compressed_data_sz == 0) {
-                fprintf(stderr, "compressed size is 0!\n");
-                return -1;
-            }
-            buf_add_uint32(b, compressed_data_sz);
-            buf_add_bytes(b, compressed_data_sz, compressed_data);
+        case framebuffer_encoding_type_raw:
+            // 3 bytes per pixel (RGB)
+            buf_add_bytes(b,  rect->width * rect->height * 3, (uint8_t *)rect->enc.raw.data);
+            break;
+        case framebuffer_encoding_type_solid:
+            buf_add_uint8(b, rect->enc.solid.red);
+            buf_add_uint8(b, rect->enc.solid.green);
+            buf_add_uint8(b, rect->enc.solid.blue);
             break;
         default:
-            fprintf(stderr, "encoding type %d not implemented!\n", rect->encoding_type);
+            fprintf(stderr, "%s: encoding type %d not implemented!\n", __FUNCTION__, rect->encoding_type);
             buf_free(b);
             return -1;
         }
@@ -362,12 +355,8 @@ int pkt_recv_session_join_response(int s, pkt_session_join_response_t *pkt) {
     pkt->status = status;
 
     if (status == SESSION_JOIN_CLIENT_JOINED || status == SESSION_JOIN_CLIENT_LEFT) {
-        uint8_t client_name_len;
-        if (recv_all(s, &client_name_len, sizeof(client_name_len)) <= 0) {
-            return -1;
-        }
-        char *name = calloc(client_name_len + 1, 1);
-        if (recv_all(s, name, client_name_len) <= 0) {
+        char *name = recv_str(s);
+        if (name == NULL) {
             return -1;
         }
         pkt->client_name = name;
@@ -385,10 +374,9 @@ int pkt_recv_session_join_response(int s, pkt_session_join_response_t *pkt) {
  * @param output            will be set to the newly allocated update (must be free'd by caller)
  * @return -1 on error, otherwise 0
  */
-int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuffer_update_t **output) {
+int pkt_recv_framebuffer_update(int sockfd, framebuffer_update_t **output) {
     struct __attribute__ ((__packed__)) {
-        uint8_t padding;
-        uint16_t n_rects;
+        uint8_t n_rects;
     }
     hdr;
 
@@ -397,7 +385,7 @@ int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuf
         uint16_t ypos;
         uint16_t width;
         uint16_t height;
-        int32_t encoding_type;
+        uint8_t encoding_type;
     }
     rect_info;
 
@@ -410,7 +398,7 @@ int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuf
         return -1;
     }
 
-    update->n_rects = ntohs(hdr.n_rects);
+    update->n_rects = hdr.n_rects;
     update->rects = malloc(sizeof(framebuffer_rect_t *) * update->n_rects);
 
     int i;
@@ -428,28 +416,28 @@ int pkt_recv_framebuffer_update(int sockfd, z_stream *zlib_recv_stream, framebuf
         rect->ypos = ntohs(rect_info.ypos);
         rect->width = ntohs(rect_info.width);
         rect->height = ntohs(rect_info.height);
-        rect->encoding_type = ntohl(rect_info.encoding_type);
+        rect->encoding_type = rect_info.encoding_type;
 
-        if (rect->encoding_type == framebuffer_encoding_type_zrle) {
-            uint32_t compressed_sz;
-            if (recv_all(sockfd, &compressed_sz, sizeof(compressed_sz)) < 0) {
-                return errno;
-            }
-            compressed_sz = ntohl(compressed_sz);
-            uint8_t *data = malloc(compressed_sz);
+        if (rect->encoding_type == framebuffer_encoding_type_raw) {
+            size_t sz = rect->width * rect->height * 3;
+            uint8_t *data = malloc(sz);
             if (data == NULL) {
                 return errno;
             }
-
-            if (recv_all(sockfd, data, compressed_sz) < 0) {
+            if (recv_all(sockfd, data, sz) < 0) {
                 return errno;
             }
-
-            if (decompress_zrle(zlib_recv_stream, rect, data, compressed_sz) != 0) {
-                return -1;
+            rect->enc.raw.data = data;
+        } else if (rect->encoding_type == framebuffer_encoding_type_solid) {
+            uint8_t pixel[3];
+            if (recv_all(sockfd, pixel, 3) < 0) {
+                return errno;
             }
+            rect->enc.solid.red = pixel[0];
+            rect->enc.solid.green = pixel[1];
+            rect->enc.solid.blue = pixel[2];
         } else {
-            fprintf(stderr, "unknown encoding %d\n", rect->encoding_type);
+            fprintf(stderr, "%s: unknown encoding %d\n", __FUNCTION__, rect->encoding_type);
             return -1;
         }
 
