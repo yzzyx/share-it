@@ -7,7 +7,7 @@ all: share-it
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-share-it: main.o grab_gdk.o net.o packet.o password.o buf.o handlers.o framebuffer.o
+share-it: main.o viewer.o grab_gdk.o net.o packet.o password.o buf.o handlers.o framebuffer.o
 	$(CC) -o share-it $^ $(LDFLAGS)
 
 view: view.o xcb.o packet.o

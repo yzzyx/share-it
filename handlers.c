@@ -79,7 +79,6 @@ int app_handle_screenshare_start(shareit_app_t *app) {
     app->view->width = width;
     app->view->height = height;
 
-    gtk_widget_set_size_request(GTK_WIDGET(app->screen_share_area), width, height);
     gtk_widget_show_all(app->screen_share_window);
     return 0;
 }
@@ -98,7 +97,7 @@ int app_handle_framebuffer_update(shareit_app_t *app) {
         draw_update(app->view, update);
     }
 
-    gtk_widget_queue_draw(GTK_WIDGET(app->screen_share_area));
+    gtk_widget_queue_draw(app->screen_share_window);
     free_framebuffer_update(update);
     return 0;
 }

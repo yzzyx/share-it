@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include "shareit.h"
+#include "viewer.h"
 #include "grab.h"
 #include "handlers.h"
 #include "framebuffer.h"
@@ -29,12 +30,6 @@ static shareit_app_t *setup() {
     // Allocate new app and initialize it to 0
     app = calloc(1, sizeof(shareit_app_t));
     if (app == NULL) {
-        return NULL;
-    }
-
-    // block is used to transfer an updated section of the screen
-    app->block = malloc(128*128*sizeof(uint32_t));
-    if (app->block == NULL) {
         return NULL;
     }
 
@@ -176,11 +171,6 @@ static gboolean dlg_share_ok_clicked_cb(GtkWidget *widget, shareit_app_t *app) {
     return FALSE;
 }
 
-#define BUILDER_GET(out, type, name) out = type(gtk_builder_get_object(builder, name)); \
-if (out == NULL) { \
-	g_critical("Widget \"%s\" is missing in UI file", #name); \
-}
-
 static gboolean btn_start_share_clicked_cb(GtkWidget *widget, shareit_app_t *app) {
     // If we're currently sharing, stop it
     if (app->share_screen == TRUE) {
@@ -273,39 +263,6 @@ static gboolean dlg_connect_cancel_clicked_cb(GtkWidget *widget, shareit_app_t *
     return FALSE;
 }
 
-static gboolean screen_area_draw_cb(GtkWidget *widget, GdkEvent *event, shareit_app_t *app) {
-    GdkWindow *window = gtk_widget_get_window(widget);
-    GdkDrawingContext *ctx;
-    if (app->view == NULL || app->view->pixels == NULL) {
-        return FALSE;
-    }
-
-    cairo_region_t *region = cairo_region_create();
-
-    cairo_surface_t *surface = cairo_image_surface_create_for_data (app->view->pixels,
-                               CAIRO_FORMAT_RGB24,
-                               app->view->width,
-                               app->view->height,
-                               app->view->row_stride);
-    ctx = gdk_window_begin_draw_frame(window, region);
-    cairo_t *cr = gdk_drawing_context_get_cairo_context(ctx);
-    cairo_set_source_surface(cr, surface, 0, 0);
-    cairo_paint(cr);
-    gdk_window_end_draw_frame(window, ctx);
-    cairo_surface_destroy(surface);
-    cairo_region_destroy(region);
-    return FALSE;
-}
-
-static void screen_area_size_allocate_cb(GtkWidget *widget, GdkRectangle *allocation, shareit_app_t *app) {
-    gtk_widget_queue_draw(widget);
-}
-
-static void screen_area_realize_cb(GtkWidget *widget, shareit_app_t *app) {
-    gtk_widget_queue_draw(widget);
-}
-
-
 static gboolean data_available(GIOChannel *source, GIOCondition condition, shareit_app_t *app) {
     size_t nb;
     if (condition & G_IO_ERR) {
@@ -358,9 +315,6 @@ static void activate_builder (GtkApplication *gtk_application, shareit_app_t *ap
     gtk_builder_add_callback_symbol(builder, "dlg_connect_connect_clicked_cb", G_CALLBACK(dlg_connect_connect_clicked_cb));
     gtk_builder_add_callback_symbol(builder, "dlg_connect_cancel_clicked_cb", G_CALLBACK(dlg_connect_cancel_clicked_cb));
     gtk_builder_add_callback_symbol(builder, "dlg_connect_destroy_cb", G_CALLBACK(dlg_connect_cancel_clicked_cb));
-    gtk_builder_add_callback_symbol(builder, "screen_area_draw_cb", G_CALLBACK(screen_area_draw_cb));
-    gtk_builder_add_callback_symbol(builder, "screen_area_realize_cb", G_CALLBACK(screen_area_realize_cb));
-    gtk_builder_add_callback_symbol(builder, "screen_area_size_allocate_cb", G_CALLBACK(screen_area_size_allocate_cb));
     gtk_builder_connect_signals(builder, app);
 
     BUILDER_GET(app->window, GTK_WIDGET, "win_toolbar");
@@ -385,8 +339,11 @@ static void activate_builder (GtkApplication *gtk_application, shareit_app_t *ap
     BUILDER_GET(app->dlg_select_session_entry, GTK_ENTRY, "dlg_select_session_entry");
     BUILDER_GET(app->dlg_connect, GTK_WIDGET, "dlg_connect");
     BUILDER_GET(app->dlg_connect_server_dropdown, GTK_COMBO_BOX_TEXT, "dlg_connect_server_dropdown");
-    BUILDER_GET(app->screen_share_window, GTK_WIDGET, "win_screen_share");
-    BUILDER_GET(app->screen_share_area, GTK_DRAWING_AREA, "screen_share_area");
+
+    app->screen_share_window = viewer_initialize(app);
+    if (app->screen_share_window == NULL) {
+        fprintf(stderr, "Could not initialize viewer window");
+    }
 
     // Show the connect dialog at start unless we've already been called with a hostname
     gboolean skip_connect_dialog = FALSE;

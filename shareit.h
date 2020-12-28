@@ -3,6 +3,13 @@
 #include <gtk/gtk.h>
 #include "net.h"
 
+// Macro to simplify getting widgets from builder
+#define BUILDER_GET(out, type, name) out = type(gtk_builder_get_object(builder, name)); \
+if (out == NULL) { \
+	g_critical("Widget \"%s\" is missing in UI file", #name); \
+}
+
+
 typedef struct {
     uint8_t *pixels; // pointer to buffer for all pixels
     int row_stride;  // n. of bytes for each row
@@ -18,7 +25,6 @@ typedef struct {
     int width;
     int height;
 
-    uint32_t *block;
     uint32_t *current_screen;
     uint32_t *prev_screen;
 
@@ -46,7 +52,6 @@ typedef struct {
     GtkComboBoxText *dlg_connect_server_dropdown;
 
     GtkWidget *screen_share_window;
-    GtkDrawingArea *screen_share_area;
 } shareit_app_t;
 
 void show_error(shareit_app_t *app, const char *fmt, ...);
