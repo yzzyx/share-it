@@ -79,7 +79,7 @@ static gboolean screen_share_timer(shareit_app_t *app) {
 
     int mx, my;
     grab_cursor_position(app->grabber, &mx, &my);
-    if (mx != app->mouse_pos_x && my != app->mouse_pos_y) {
+    if (mx != -1 && my != -1 && mx != app->mouse_pos_x && my != app->mouse_pos_y) {
         if (pkt_send_cursorinfo(app->conn->socket, mx, my, 0) != 0) {
             show_error(app, "could not send cursor info to server");
             gdk_threads_add_idle(G_SOURCE_FUNC(stop_screen_share), app);

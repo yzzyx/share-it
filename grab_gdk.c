@@ -75,6 +75,18 @@ void grab_shutdown(grab_gdk_t *info) {
  * returns which cursor is used and where it's located
  */
 void grab_cursor_position(grab_gdk_t *info, int *x, int *y) {
+    GdkDevice *device;
+    gint cx, cy;
     *x = 0;
     *y = 0;
+
+    GdkSeat *seat = gdk_display_get_default_seat(gdk_display_get_default());
+    device = gdk_seat_get_pointer(seat);
+    gdk_window_get_device_position (info->root, device, &cx, &cy, NULL);
+
+    if (cx > 0 && cx < info->width  &&
+        cy > 0 && cy <= info->height) {
+        *x = cx;
+        *y = cy;
+    }
 }
