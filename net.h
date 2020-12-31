@@ -10,14 +10,41 @@
 #ifndef SHAREIT_NET_H
 #define SHAREIT_NET_H
 
+enum signal {
+    SIGNAL_CONNECTING,
+    SIGNAL_DISCONNECTED,
+    SIGNAL_CONNECTED,
+    SIGNAL_ERROR,
+    SIGNAL_SESSION_JOINED,
+    SIGNAL_SESSION_CLIENT_JOINED,
+    SIGNAL_SESSION_CLIENT_LEFT,
+    SIGNAL_CURSOR_UPDATE,
+    SIGNAL_SCREEN_SHARE_START,
+    SIGNAL_UNUSED_MAX,
+};
+
 typedef struct {
     char *hostname;
     char *port;
 
     struct addrinfo *addr;
     int socket;
+
+    GIOChannel *channel;
+    GList *signal_handlers[SIGNAL_UNUSED_MAX];
 } connection_t;
 
-connection_t *net_connect(const char *url, char **error);
+
+// handlefunc_t desribes a handler for a network signal
+//  - if the handlefunc returns FALSE (0), it will be removed from the list
+typedef gboolean (*handlefunc_t) (void *signalinfo, void *data);
+
+
+connection_t *net_new();
+int net_connect(connection_t *conn, const char *url, char **error);
 int net_disconnect(connection_t *conn);
+void net_free(connection_t *conn);
+
+gpointer net_signal_connect(connection_t *conn, enum signal sig, handlefunc_t fn, void*data);
+void net_signal_emit(connection_t *conn, enum signal sig, gpointer info);
 #endif

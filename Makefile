@@ -1,5 +1,12 @@
 CFLAGS=$(shell pkg-config --cflags gtk+-3.0) -g -Wall
-LDFLAGS=$(shell pkg-config --libs gtk+-3.0) -g
+LIBS=$(shell pkg-config --libs gtk+-3.0) -g
+PKGCONFIG = $(shell which pkg-config)
+GLIB_COMPILE_RESOURCES = $(shell $(PKGCONFIG) --variable=glib_compile_resources gio-2.0)
+GLIB_COMPILE_SCHEMAS = $(shell $(PKGCONFIG) --variable=glib_compile_schemas gio-2.0)
+SRC = main.c app.c appwin.c preferences.c viewer.c grab_gdk.c net.c packet.c password.c buf.c handlers.c framebuffer.c
+BUILT_SRC = resources.c
+OBJS = $(BUILT_SRC:.c=.o) $(SRC:.c=.o)
+
 all: share-it
 
 .PHONY: format clean
@@ -7,8 +14,17 @@ all: share-it
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-share-it: main.o viewer.o grab_gdk.o net.o packet.o password.o buf.o handlers.o framebuffer.o
-	$(CC) -o share-it $^ $(LDFLAGS)
+resources.c: shareit.gresource.xml $(shell $(GLIB_COMPILE_RESOURCES) --sourcedir=. --generate-dependencies shareit.gresource.xml)
+	$(GLIB_COMPILE_RESOURCES) shareit.gresource.xml --target=$@ --sourcedir=. --generate-source
+
+shareit.gschema.valid: shareit.gschema.xml
+	$(GLIB_COMPILE_SCHEMAS) --strict --dry-run --schema-file=$< && mkdir -p $(@D) && touch $@
+
+gschemas.compiled: shareit.gschema.valid
+	$(GLIB_COMPILE_SCHEMAS) .
+
+share-it: $(OBJS) gschemas.compiled
+	$(CC) -o share-it $(OBJS) $(LIBS)
 
 view: view.o xcb.o packet.o
 	$(CC) -o view view.o xcb.o packet.o $(LDFLAGS)
@@ -20,7 +36,11 @@ test_framebuffer: test_framebuffer.o packet.o framebuffer.o buf.o net.o
 	$(CC) -o test_framebuffer $^ $(LDFLAGS)
 
 clean:
-	rm -f *.o share-it
+	rm -f shareit.gschema.valid
+	rm -f gschemas.compiled
+	rm -f $(BUILT_SRC)
+	rm -f $(OBJS)
+	rm -f share-it
 
 format:
 	astyle \

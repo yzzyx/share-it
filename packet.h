@@ -37,6 +37,19 @@ typedef struct {
 }
 pkt_session_join_response_t;
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint8_t cursor;
+}
+pkt_cursor_info_t;
+
+typedef struct {
+    uint16_t width;
+    uint16_t height;
+}
+screensize_t;
+
 int pkt_send_session_screenshare_request (int s, uint16_t width, uint16_t height);
 int pkt_recv_session_screenshare_start_request(int s, u_int16_t *width, u_int16_t *height);
 

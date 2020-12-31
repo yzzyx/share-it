@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema path="/se/oddbike/shareit/" id="se.oddbike.shareit">
+        <key name="server" type="s">
+            <default>''</default>
+            <summary>Server address</summary>
+            <description>The server to connect to.</description>
+        </key>
+        <key name="username" type="s">
+            <default>''</default>
+            <summary>Username</summary>
+            <description>Name shown to other users (defaults to computer username).</description>
+        </key>
+    </schema>
+</schemalist>

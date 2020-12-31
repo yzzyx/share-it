@@ -31,7 +31,7 @@ typedef struct {
     double scale_x;
     double scale_y;
     gboolean fit_to_window;
-}viewer_win_t;
+} viewer_win_t;
 
 static gboolean window_draw(GtkWidget *widget, cairo_t *cr, viewer_win_t *win) {
     gtk_widget_queue_draw(win->drawing);
@@ -55,10 +55,10 @@ static gboolean drawing_draw(GtkWidget *widget, cairo_t *cr, viewer_win_t *win) 
 
     // Draw from raw pixels to cairo surface
     cairo_surface_t *surface = cairo_image_surface_create_for_data (view->pixels,
-                                                                    CAIRO_FORMAT_RGB24,
-                                                                    view->width,
-                                                                    view->height,
-                                                                    view->row_stride);
+                               CAIRO_FORMAT_RGB24,
+                               view->width,
+                               view->height,
+                               view->row_stride);
     gtk_widget_set_size_request(widget, (int)w, (int) h);
     cairo_scale(cr, win->scale_x, win->scale_y);
     cairo_set_source_surface(cr, surface, x, y);
@@ -107,7 +107,7 @@ static gboolean drawing_scroll(GtkWidget *drawing, GdkEventScroll *ev, viewer_wi
         new_x = ev->x * 1.2;
         new_y = ev->y * 1.2;
         scroll = TRUE;
-    } else if (ev->direction == GDK_SCROLL_DOWN){
+    } else if (ev->direction == GDK_SCROLL_DOWN) {
         win->scale_x /= 1.2;
         win->scale_y /= 1.2;
         new_x = ev->x / 1.2;

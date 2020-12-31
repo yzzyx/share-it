@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include "shareit.h"
+#include "app.h"
 #include "viewer.h"
 #include "grab.h"
 #include "handlers.h"
@@ -357,7 +358,7 @@ static void activate_builder (GtkApplication *gtk_application, shareit_app_t *ap
 }
 
 int main(int argc, char **argv) {
-    GtkApplication *gtk_app;
+    ShareitApp *gtk_app;
     shareit_app_t *app;
     int status;
     int opt;
@@ -374,29 +375,32 @@ int main(int argc, char **argv) {
         }
     }
 
-    app = setup();
-    if (app == NULL) {
-        fprintf(stderr, "cannot setup application\n");
-        return -1;
-    }
+//    app = setup();
+//    if (app == NULL) {
+//        fprintf(stderr, "cannot setup application\n");
+//        return -1;
+//    }
+//
+//    hostname = "localhost";
+//    if (hostname != NULL) {
+//        app->host = hostname;
+//    }
 
-    hostname = "localhost";
-    if (hostname != NULL) {
-        app->host = hostname;
-    }
+    g_setenv("GSETTINGS_SCHEMA_DIR", ".", FALSE);
+    gtk_init(&argc, &argv);
+    g_object_set(gtk_settings_get_default(), "gtk-application-prefer-dark-theme", TRUE, NULL);
+    gtk_app = shareit_app_new();
+//    g_signal_connect (gtk_app, "activate", G_CALLBACK (activate_builder), app);
+    status = g_application_run(G_APPLICATION(gtk_app), argc, argv);
+//    g_object_unref (gtk_app);
 
-    gtk_app = gtk_application_new (NULL, G_APPLICATION_FLAGS_NONE);
-    g_signal_connect (gtk_app, "activate", G_CALLBACK (activate_builder), app);
-    status = g_application_run (G_APPLICATION (gtk_app), argc, argv);
-    g_object_unref (gtk_app);
-
-    if (app->share_screen) {
-        stop_screen_share(app);
-    }
-
-    if (app->conn != NULL) {
-        net_disconnect(app->conn);
-        app->conn = NULL;
-    }
+//    if (app->share_screen) {
+//        stop_screen_share(app);
+//    }
+//
+//    if (app->conn != NULL) {
+//        net_disconnect(app->conn);
+//        app->conn = NULL;
+//    }
     return status;
 }
