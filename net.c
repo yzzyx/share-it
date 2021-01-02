@@ -179,12 +179,12 @@ void net_free(connection_t *conn) {
         freeaddrinfo(conn->addr);
     }
 
-    if (conn->socket != 0) {
-        close(conn->socket);
-    }
-
     if (conn->channel != NULL) {
         g_io_channel_shutdown(conn->channel, FALSE, NULL);
+    }
+
+    if (conn->socket != 0) {
+        close(conn->socket);
     }
 
     for (int i = 0; i < SIGNAL_UNUSED_MAX; i ++) {
