@@ -19,7 +19,6 @@
 #include "net.h"
 #include "packet.h"
 
-
 static int recv_join_response(connection_t *conn) {
     pkt_session_join_response_t pkt;
     char *err;
@@ -41,7 +40,7 @@ static int recv_join_response(connection_t *conn) {
             free(pkt.client_name);
             break;
         case SESSION_JOIN_OK:
-            net_signal_emit(conn, SIGNAL_SESSION_JOINED, pkt.client_name);
+            net_signal_emit(conn, SIGNAL_SESSION_JOINED, NULL);
             break;
         default:
             err = g_strdup_printf("error receiving session join information: unknown status %d\n", pkt.status);
@@ -65,7 +64,7 @@ static int recv_cursor_info(connection_t *conn) {
         g_free(err);
         return -1;
     }
-    pkt_cursor_info_t info = {
+    cursorinfo_t info = {
         .x = x,
         .y = y,
         .cursor = cursor,
@@ -103,13 +102,13 @@ static int recv_framebuffer_update(connection_t *conn) {
         g_free(err);
         return -1;
     }
+
+    net_signal_emit(conn, SIGNAL_FRAMEBUFFER_UPDATE, update);
+    free_framebuffer_update(update);
     return 0;
 }
 
 static gboolean conn_reconnect(connection_t *conn) {
-
-
-
     return FALSE;
 }
 
@@ -268,6 +267,34 @@ int net_connect(connection_t *conn, const char *url, char **error) {
     g_io_channel_set_buffered(conn->channel, FALSE);
     g_io_add_watch(conn->channel, G_IO_IN | G_IO_HUP | G_IO_ERR, (GIOFunc)data_available, conn);
 
+    net_signal_emit(conn, SIGNAL_CONNECTED, conn);
+
+    return 0;
+}
+
+int net_join_session(connection_t *conn, const char *session_name, char **error) {
+    int ret;
+    ret = pkt_send_session_join_request(conn->socket, session_name, "");
+    if (ret == -1) {
+        if (error != NULL) {
+            *error = strdup(strerror(errno));
+        }
+        return -1;
+    }
+
+    return 0;
+}
+
+int net_start_screenshare(connection_t *conn, int width, int height) {
+    if (pkt_send_session_screenshare_request(conn->socket, width, height) == -1) {
+        return -1;
+    }
+    return 0;
+}
+
+int net_leave_session(connection_t *conn) {
+    // FIXME - send packet to server
+    net_signal_emit(conn, SIGNAL_SESSION_LEFT, NULL);
     return 0;
 }
 
@@ -296,8 +323,10 @@ gpointer net_signal_connect(connection_t *conn, enum signal sig, handlefunc_t fn
     int id = 0;
 
     if (conn->signal_handlers[sig] != NULL) {
-        handler_t *handler = g_list_last(conn->signal_handlers[sig])->data;
-        id = handler->id++;
+        GList *first = conn->signal_handlers[sig];
+        if (first->data != NULL) {
+            id = ((handler_t *)first->data)->id++;
+        }
     }
 
     handler_t *handler = g_new0(handler_t, 1);

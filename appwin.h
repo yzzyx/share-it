@@ -11,11 +11,14 @@
 #define SHARE_IT_APPWIN_H
 #include <gtk/gtk.h>
 #include "app.h"
+#include "net.h"
 
 struct _ShareitAppWindow
 {
     GtkApplicationWindow parent;
     GtkLabel *lbl_info;
+
+    connection_t *conn;
 };
 
 #define SHAREIT_APP_WINDOW_TYPE (shareit_app_window_get_type())

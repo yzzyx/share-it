@@ -7,11 +7,12 @@
 // Copyright © 2020 Elias Norberg
 // Licensed under the GPLv3 or later.
 // See COPYING at the root of the repository for details.
-#ifndef SHARE_IT_VIEWER_H
-#define SHARE_IT_VIEWER_H
+#ifndef SHARE_IT_SESSION_H
+#define SHARE_IT_SESSION_H
 
-typedef struct viewer_win viewer_win_t;
+#define SHAREIT_SESSION_TYPE (shareit_session_get_type())
+G_DECLARE_FINAL_TYPE(ShareitSession, shareit_session, SHAREIT, SESSION, GtkWindow)
 
-GtkWidget *viewer_initialize(shareit_app_t *app);
+ShareitSession *shareit_session_new(ShareitAppWindow *win);
 
-#endif //SHARE_IT_VIEWER_H
+#endif //SHARE_IT_SESSION_H

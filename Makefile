@@ -3,7 +3,7 @@ LIBS=$(shell pkg-config --libs gtk+-3.0) -g
 PKGCONFIG = $(shell which pkg-config)
 GLIB_COMPILE_RESOURCES = $(shell $(PKGCONFIG) --variable=glib_compile_resources gio-2.0)
 GLIB_COMPILE_SCHEMAS = $(shell $(PKGCONFIG) --variable=glib_compile_schemas gio-2.0)
-SRC = main.c app.c appwin.c preferences.c viewer.c grab_gdk.c net.c packet.c password.c buf.c handlers.c framebuffer.c
+SRC = main.c app.c appwin.c preferences.c session.c screenshare.c grab_gdk.c net.c packet.c password.c buf.c handlers.c framebuffer.c
 BUILT_SRC = resources.c
 OBJS = $(BUILT_SRC:.c=.o) $(SRC:.c=.o)
 
