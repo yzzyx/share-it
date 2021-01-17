@@ -35,6 +35,9 @@ test: test_framebuffer
 test_framebuffer: test_framebuffer.o packet.o framebuffer.o buf.o net.o
 	$(CC) -o test_framebuffer $^ $(LDFLAGS)
 
+server: server.o buf.o packet.o framebuffer.o
+	$(CC) -o server $^ $(LDFLAGS)
+
 clean:
 	rm -f shareit.gschema.valid
 	rm -f gschemas.compiled
