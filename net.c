@@ -298,6 +298,22 @@ int net_leave_session(connection_t *conn) {
     return 0;
 }
 
+int net_send_cursorinfo(connection_t *conn, int x, int y) {
+    if (pkt_send_cursorinfo(conn->socket, x, y, 0) == -1) {
+        net_signal_emit(conn, SIGNAL_ERROR, "could not send cursor info");
+        return -1;
+    }
+    return 0;
+}
+
+int net_send_framebuffer_update(connection_t *conn, framebuffer_update_t *update) {
+    if (pkt_send_framebuffer_update(conn->socket, update) == -1) {
+        net_signal_emit(conn, SIGNAL_ERROR, "could not send framebuffer update");
+        return -1;
+    }
+    return 0;
+}
+
 /**
  * disconnect from remote host
  *

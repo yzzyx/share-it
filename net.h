@@ -9,6 +9,7 @@
 // See COPYING at the root of the repository for details.
 #ifndef SHAREIT_NET_H
 #define SHAREIT_NET_H
+#include "framebuffer.h"
 
 enum signal {
     SIGNAL_CONNECTING,
@@ -64,6 +65,8 @@ int net_disconnect(connection_t *conn);
 int net_join_session(connection_t *conn, const char *session_name, char **error);
 int net_leave_session(connection_t *conn);
 int net_start_screenshare(connection_t *conn, int width, int height);
+int net_send_cursorinfo(connection_t *conn, int x, int y);
+int net_send_framebuffer_update(connection_t *conn, framebuffer_update_t *update);
 void net_free(connection_t *conn);
 
 gpointer net_signal_connect(connection_t *conn, enum signal sig, handlefunc_t fn, void*data);
