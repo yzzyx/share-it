@@ -3,7 +3,6 @@
 // See COPYING at the root of the repository for details.
 #ifndef GRAB_FRAMEBUFFER_H
 #define GRAB_FRAMEBUFFER_H
-#include "shareit.h"
 
 enum framebuffer_encoding_type {
     framebuffer_encoding_type_raw = 0,
@@ -22,6 +21,20 @@ enum framebuffer_encoding_type {
     framebuffer_encoding_type_desktop_size = -223,
     */
 };
+
+typedef struct {
+    uint32_t *current_screen; // pointer to buffer for all pixels
+    uint32_t *prev_screen;  // n. of bytes for each row
+    int width;       // width of view
+    int height;      // height of view
+} screeninfo_t;
+
+typedef struct {
+    uint8_t *pixels; // pointer to buffer for all pixels
+    int row_stride;  // n. of bytes for each row
+    int width;       // width of view
+    int height;      // height of view
+} viewinfo_t;
 
 typedef struct {
     uint16_t source_x;
@@ -66,8 +79,8 @@ typedef struct {
 } framebuffer_update_t;
 
 void free_framebuffer_update(framebuffer_update_t *update);
-void copy_screen_to_raw(shareit_app_t *app, uint8_t *block, int x, int y, int w, int h);
-int compare_parts(shareit_app_t *app, int x, int y, int w, int h);
-int compare_screens(shareit_app_t *app, framebuffer_update_t **update);
+void copy_screen_to_raw(screeninfo_t *app, uint8_t *block, int x, int y, int w, int h);
+int compare_parts(screeninfo_t *app, int x, int y, int w, int h);
+int compare_screens(screeninfo_t *app, framebuffer_update_t **update);
 int draw_update(viewinfo_t *view, framebuffer_update_t *update);
 #endif

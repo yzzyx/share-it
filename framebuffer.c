@@ -62,7 +62,7 @@ void free_framebuffer_update(framebuffer_update_t *update) {
  * @param[in]  w      width of block to copy
  * @param[in]  h      height of block to copy
  */
-void copy_screen_to_raw(shareit_app_t *app, uint8_t *block, int x, int y, int w, int h) {
+void copy_screen_to_raw(screeninfo_t *app, uint8_t *block, int x, int y, int w, int h) {
     int row;
     int max_x = min(app->width, x+w);
     int max_y = min(app->height, y+h);
@@ -97,7 +97,7 @@ void copy_screen_to_raw(shareit_app_t *app, uint8_t *block, int x, int y, int w,
  * @param h   height of block
  * @return  1 if blocks differ, and 0 if they're equal
  */
-int compare_parts(shareit_app_t *app, int x, int y, int w, int h) {
+int compare_parts(screeninfo_t *app, int x, int y, int w, int h) {
     int max_x, max_y;
     int sz;
 
@@ -128,7 +128,7 @@ int compare_parts(shareit_app_t *app, int x, int y, int w, int h) {
  * @param h
  * @return returns TRUE if rect consists of only one colour, otherwise FALSE
  */
-int rect_palette(shareit_app_t *app, int x, int y, int w, int h, uint32_t **output_palette) {
+int rect_palette(screeninfo_t *app, int x, int y, int w, int h, uint32_t **output_palette) {
     uint32_t palette[32];
     uint8_t n_colours = 0;
     uint32_t pixel;
@@ -177,7 +177,7 @@ int rect_palette(shareit_app_t *app, int x, int y, int w, int h, uint32_t **outp
  * @param h    Height
  * @return     Returns a newly allocated framebuffer_rect_t
  */
-framebuffer_rect_t *create_rect(shareit_app_t *app, int x, int y, int w, int h) {
+framebuffer_rect_t *create_rect(screeninfo_t *app, int x, int y, int w, int h) {
     framebuffer_rect_t  *rect;
 
     rect = malloc(sizeof(framebuffer_rect_t));
@@ -213,7 +213,7 @@ framebuffer_rect_t *create_rect(shareit_app_t *app, int x, int y, int w, int h) 
  *                    sent to the server.
  * @return returns TRUE if screen has been changed, otherwise FALSE
  */
-int compare_screens(shareit_app_t *app, framebuffer_update_t **output) {
+int compare_screens(screeninfo_t *app, framebuffer_update_t **output) {
     int n_rects = 0;
     framebuffer_update_t *update;
     framebuffer_rect_t *rect;

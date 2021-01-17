@@ -11,13 +11,6 @@ if (out == NULL) { \
 
 
 typedef struct {
-    uint8_t *pixels; // pointer to buffer for all pixels
-    int row_stride;  // n. of bytes for each row
-    int width;       // width of view
-    int height;      // height of view
-} viewinfo_t;
-
-typedef struct {
     gboolean share_screen;
 
     // Variables used in presentation mode
@@ -34,7 +27,6 @@ typedef struct {
     viewinfo_t *view;
 
     // Network settings
-    connection_t *conn;
     char *host;
     GIOChannel  *channel;
 

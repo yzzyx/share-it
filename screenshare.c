@@ -23,10 +23,14 @@ struct _ShareitScreenshare {
     // Parent window
     ShareitAppWindow *appwin;
 
+    int timer_id;
+
     connection_t *conn;
     gpointer grabber;
-    int width;
-    int height;
+
+    screeninfo_t screeninfo;
+    int mouse_pos_x;
+    int mouse_pos_y;
 
     GtkBox *box_participants;
 };
@@ -44,6 +48,56 @@ static void shareit_screenshare_init(ShareitScreenshare *win) {
     gtk_window_move(GTK_WINDOW(win),
                     gdk_screen_width() - window_width,
                     gdk_screen_height()/2 - window_height/2);
+}
+
+static int screen_share_timer(void *ptr) {
+    ShareitScreenshare *win = SHAREIT_SCREENSHARE(ptr);
+    uint32_t *tmp;
+    int ret;
+
+    if (g_source_is_destroyed(g_main_current_source())) {
+        return G_SOURCE_REMOVE;
+    }
+
+    int mx, my;
+    grab_cursor_position(win->grabber, &mx, &my);
+    if (mx != -1 && my != -1 && mx != win->mouse_pos_x && my != win->mouse_pos_y) {
+        if (net_send_cursorinfo(win->conn, mx, my) == -1) {
+            return G_SOURCE_REMOVE;
+        }
+        win->mouse_pos_x = mx;
+        win->mouse_pos_y = my;
+    }
+
+    if (win->screeninfo.current_screen == NULL) {
+        win->screeninfo.current_screen = malloc(sizeof(uint32_t) * win->screeninfo.width * win->screeninfo.height);
+        if (win->screeninfo.current_screen == NULL) {
+            perror("could not allocate screen memory");
+            return G_SOURCE_REMOVE;
+        }
+    }
+
+    ret = grab_window(win->grabber, (uint8_t *)win->screeninfo.current_screen);
+    if (ret != 0) {
+        fprintf(stderr, "could not read window data\n");
+        return G_SOURCE_REMOVE;
+    }
+
+    framebuffer_update_t *update;
+    if (compare_screens(&win->screeninfo, &update)) {
+        if (net_send_framebuffer_update(win->conn, update) == -1) {
+            return G_SOURCE_REMOVE;
+        }
+    }
+
+    // Switch prev and current buffers, so that we don't have to allocate
+    // and free the memory all the time
+    tmp = win->screeninfo.prev_screen;
+    win->screeninfo.prev_screen = win->screeninfo.current_screen;
+    win->screeninfo.current_screen = tmp;
+
+    // Reschedule
+    return G_SOURCE_CONTINUE;
 }
 
 
@@ -81,7 +135,7 @@ static int shareit_screenshare_activate(ShareitScreenshare *win) {
     }
 
     win->grabber = grabber;
-    if (grab_window_size(win->grabber, &win->width, &win->height) != 0) {
+    if (grab_window_size(win->grabber, &win->screeninfo.width, &win->screeninfo.height) != 0) {
 //        show_error(app, "could not read window size");
         gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL,
                                GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
@@ -90,19 +144,28 @@ static int shareit_screenshare_activate(ShareitScreenshare *win) {
         return -1;
     }
 
-    if (net_start_screenshare(win->conn, win->width, win->height) == -1) {
+    if (net_start_screenshare(win->conn, win->screeninfo.width, win->screeninfo.height) == -1) {
         gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL,
                                GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
                                "could not send screenshare info to server");
         grab_shutdown(win->grabber);
         return -1;
     }
+
+    win->timer_id = g_timeout_add(50, screen_share_timer, win);
     return 0;
 }
 
 static void shareit_screenshare_dispose(GObject *object) {
     ShareitScreenshare *win = SHAREIT_SCREENSHARE(object);
 
+    if (win->timer_id) {
+        g_source_remove(win->timer_id);
+        win->timer_id = 0;
+    }
+
+    // FIXME - signal server that we're not sharing anymore
+    // net_stop_screenshare()
 //    if (win->handler_screen_share_start) {
 //        net_signal_disconnect(win->conn, SIGNAL_SCREEN_SHARE_START, win->handler_screen_share_start);
 //        win->handler_screen_share_start = NULL;
